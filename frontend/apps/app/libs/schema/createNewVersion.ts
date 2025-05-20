@@ -148,90 +148,85 @@ export async function createNewVersion({
   }
 
   // Since the RPC function might not be available, implement the logic directly
-  try {
-    // Get the latest version number for this schema
-    const { data: latestVersion, error: latestVersionError } = await supabase
-      .from('building_schema_versions')
-      .select('number')
-      .eq('building_schema_id', buildingSchemaId)
-      .order('number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+  // Get the latest version number for this schema
+  const { data: latestVersion, error: latestVersionError } = await supabase
+    .from('building_schema_versions')
+    .select('number')
+    .eq('building_schema_id', buildingSchemaId)
+    .order('number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-    // If there's an error and it's not a "no rows returned" error, throw it
-    if (
-      latestVersionError &&
-      !latestVersionError.message.includes('No rows returned')
-    ) {
-      throw new Error(
-        `Failed to get latest version: ${latestVersionError.message}`,
-      )
-    }
+  // If there's an error and it's not a "no rows returned" error, throw it
+  if (
+    latestVersionError &&
+    !latestVersionError.message.includes('No rows returned')
+  ) {
+    throw new Error(
+      `Failed to get latest version: ${latestVersionError.message}`,
+    )
+  }
 
-    // Get the actual latest version number
-    const actualLatestVersionNumber = latestVersion ? latestVersion.number : 0
+  // Get the actual latest version number
+  const actualLatestVersionNumber = latestVersion ? latestVersion.number : 0
 
-    // Check if the expected version number matches the actual latest version number
-    if (latestVersionNumber !== actualLatestVersionNumber) {
-      // Version conflict detected
-      return {
-        success: false,
-        error:
-          'Version conflict: The schema has been modified since you last loaded it',
-        latestVersionNumber: actualLatestVersionNumber,
-      }
-    }
-
-    // Calculate the next version number
-    const nextVersionNumber = actualLatestVersionNumber + 1
-
-    // NOTE: no need to check for duplicates here, as the database will enforce unique constraints!
-    // Insert the new version
-    const { data: newVersion, error: insertError } = await supabase
-      .from('building_schema_versions')
-      .insert({
-        organization_id: 'orgId', // TODO: Replace with actual organization ID
-        building_schema_id: buildingSchemaId,
-        number: nextVersionNumber,
-        patch: patch as any,
-        reverse_patch: reversePatch as any,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
-
-    if (insertError) {
-      throw new Error(`Failed to insert new version: ${insertError.message}`)
-    }
-
-    // TODO: update?
-    // Update the schema's updated_at timestamp
-    const { error: updateError } = await supabase
-      .from('building_schemas')
-      .select('updated_at')
-      .eq('id', buildingSchemaId)
-
-    if (updateError) {
-      console.error('Error updating schema timestamp:', updateError)
-      // Continue anyway since the version was created successfully
-    }
-
-    // Return success response
+  // Check if the expected version number matches the actual latest version number
+  if (latestVersionNumber !== actualLatestVersionNumber) {
+    // Version conflict detected
     return {
-      success: true,
-      id: newVersion.id,
-      buildingSchemaId: newVersion.building_schema_id,
-      number: newVersion.number,
-      patch: Array.isArray(newVersion.patch)
-        ? (newVersion.patch as unknown as Operation[])
-        : undefined,
-      reversePatch: Array.isArray(newVersion.reverse_patch)
-        ? (newVersion.reverse_patch as unknown as Operation[])
-        : undefined,
-      createdAt: newVersion.created_at,
+      success: false,
+      error:
+        'Version conflict: The schema has been modified since you last loaded it',
+      latestVersionNumber: actualLatestVersionNumber,
     }
-  } catch (error: any) {
-    console.error('Error creating schema version:', error)
-    throw new Error(`Failed to create schema version: ${error.message}`)
+  }
+
+  // Calculate the next version number
+  const nextVersionNumber = actualLatestVersionNumber + 1
+
+  // NOTE: no need to check for duplicates here, as the database will enforce unique constraints!
+  // Insert the new version
+  const { data: newVersion, error: insertError } = await supabase
+    .from('building_schema_versions')
+    .insert({
+      organization_id: 'orgId', // TODO: Replace with actual organization ID
+      building_schema_id: buildingSchemaId,
+      number: nextVersionNumber,
+      patch: JSON.parse(JSON.stringify(patch)),
+      reverse_patch: JSON.parse(JSON.stringify(reversePatch)),
+      created_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+
+  if (insertError) {
+    throw new Error(`Failed to insert new version: ${insertError.message}`)
+  }
+
+  // TODO: update?
+  // Update the schema's updated_at timestamp
+  const { error: updateError } = await supabase
+    .from('building_schemas')
+    .select('updated_at')
+    .eq('id', buildingSchemaId)
+
+  if (updateError) {
+    console.error('Error updating schema timestamp:', updateError)
+    // Continue anyway since the version was created successfully
+  }
+
+  // Return success response
+  return {
+    success: true,
+    id: newVersion.id,
+    buildingSchemaId: newVersion.building_schema_id,
+    number: newVersion.number,
+    patch: Array.isArray(newVersion.patch)
+      ? (newVersion.patch as unknown as Operation[])
+      : undefined,
+    reversePatch: Array.isArray(newVersion.reverse_patch)
+      ? (newVersion.reverse_patch as unknown as Operation[])
+      : undefined,
+    createdAt: newVersion.created_at,
   }
 }
