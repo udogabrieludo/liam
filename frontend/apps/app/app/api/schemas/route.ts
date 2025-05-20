@@ -33,11 +33,12 @@ export async function POST(request: NextRequest) {
     
     // Create a new schema
     const { data: schema, error } = await supabase
-      .from('schemas')
+      .from('building_schemas')
       .insert({
         organization_id: orgMember.organization_id,
+        design_session_id: request.headers.get('x-design-session-id') || '',
+        schema: {},
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       })
       .select()
       .single()
