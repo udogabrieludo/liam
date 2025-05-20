@@ -59,9 +59,10 @@ create policy "authenticated_users_can_delete_org_building_schema_versions"
     where ("organization_members"."user_id" = "auth"."uid"())
   )));
 
-create or replace function "public"."set_xxx_organization_id"() returns "trigger"
-    language "plpgsql" security definer
-    as $$
+alter function "public"."set_building_schema_versions_organization_id"() owner to "postgres";
+create or replace function "public"."set_building_schema_versions_organization_id"() returns "trigger"
+  language "plpgsql" security definer
+  as $$
 begin
   new.organization_id := (
     select "organization_id" 
@@ -72,5 +73,17 @@ begin
 end;
 $$;
 
+create trigger "set_building_schema_versions_organization_id_trigger"
+  before insert or update on "public"."building_schema_versions"
+  for each row
+  execute function "public"."set_building_schema_versions_organization_id"();
+
+GRANT ALL ON TABLE "public"."building_schema_versions" TO "anon";
+GRANT ALL ON TABLE "public"."building_schema_versions" TO "authenticated";
+GRANT ALL ON TABLE "public"."building_schema_versions" TO "service_role";
+
+GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "anon";
+GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "service_role";
 
 commit;
