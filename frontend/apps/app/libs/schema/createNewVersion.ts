@@ -2,7 +2,7 @@ import { createClient } from '@/libs/db/server'
 import { type Operation, compare } from 'fast-json-patch'
 
 interface CreateVersionParams {
-  schemaId: string
+  buildingSchemaId: string
   latestVersionNumber: number
   patch: Operation[]
 }
@@ -10,17 +10,17 @@ interface CreateVersionParams {
 interface VersionResponse {
   success: boolean
   id?: string
-  building_schema_id?: string
+  buildingSchemaId?: string
   number?: number
   patch?: Operation[]
-  reverse_patch?: Operation[]
-  created_at?: string
+  reversePatch?: Operation[]
+  createdAt?: string
   error?: string
   latestVersionNumber?: number
 }
 
 export async function createNewVersion({
-  schemaId: buildingSchemaId,
+  buildingSchemaId,
   latestVersionNumber,
   patch,
 }: CreateVersionParams): Promise<VersionResponse> {
@@ -220,15 +220,15 @@ export async function createNewVersion({
     return {
       success: true,
       id: newVersion.id,
-      building_schema_id: newVersion.building_schema_id,
+      buildingSchemaId: newVersion.building_schema_id,
       number: newVersion.number,
       patch: Array.isArray(newVersion.patch)
         ? (newVersion.patch as unknown as Operation[])
         : undefined,
-      reverse_patch: Array.isArray(newVersion.reverse_patch)
+      reversePatch: Array.isArray(newVersion.reverse_patch)
         ? (newVersion.reverse_patch as unknown as Operation[])
         : undefined,
-      created_at: newVersion.created_at,
+      createdAt: newVersion.created_at,
     }
   } catch (error: any) {
     console.error('Error creating schema version:', error)
