@@ -30,91 +30,50 @@ export async function createNewVersion({
   let reversePatch: Operation[] | undefined = undefined
 
   if (latestVersionNumber > 0) {
-    try {
-      // Get all previous versions to reconstruct the content
-      const { data: previousVersions, error: previousVersionsError } =
-        await supabase
-          .from('building_schema_versions')
-          .select('number, patch')
-          .eq('building_schema_id', buildingSchemaId)
-          .lte('number', latestVersionNumber)
-          .order('number', { ascending: true })
+    // Get all previous versions to reconstruct the content
+    const { data: previousVersions, error: previousVersionsError } =
+      await supabase
+        .from('building_schema_versions')
+        .select('number, patch')
+        .eq('building_schema_id', buildingSchemaId)
+        .lte('number', latestVersionNumber)
+        .order('number', { ascending: true })
 
-      if (previousVersionsError) {
-        throw new Error(
-          `Failed to fetch previous versions: ${previousVersionsError.message}`,
-        )
-      }
+    if (previousVersionsError) {
+      throw new Error(
+        `Failed to fetch previous versions: ${previousVersionsError.message}`,
+      )
+    }
 
-      if (!previousVersions || previousVersions.length === 0) {
-        console.warn('No previous versions found, using empty base content')
-        // Continue with empty base content
-      }
+    if (!previousVersions || previousVersions.length === 0) {
+      console.warn('No previous versions found, using empty base content')
+      // Continue with empty base content
+    }
 
-      // Reconstruct the base content (first version)
-      const baseContent: Record<string, any> = {}
+    // Reconstruct the base content (first version)
+    const baseContent: Record<string, any> = {}
 
-      // Apply all patches in order to get the current content
-      const currentContent: Record<string, any> = { ...baseContent }
+    // Apply all patches in order to get the current content
+    const currentContent: Record<string, any> = { ...baseContent }
 
-      // Apply all patches in order
-      for (const version of previousVersions) {
-        // Ensure patch is an array before iterating
-        const patchArray = Array.isArray(version.patch) ? version.patch : []
-        if (patchArray.length > 0) {
-          // Apply each operation in the patch
-          for (const operation of patchArray) {
-            try {
-              // Type guard to ensure operation has the expected properties
-              const op = operation as any
-              if (!op || typeof op !== 'object' || !op.op || !op.path) {
-                continue
-              }
-
-              // Apply operation to currentContent
-              // This is a simplified version - in production, use a proper JSON patch library
-              if (op.op === 'replace' || op.op === 'add') {
-                const path = op.path.split('/').filter((p: string) => p)
-                let current = currentContent
-                for (let i = 0; i < path.length - 1; i++) {
-                  if (!current[path[i]]) {
-                    current[path[i]] = {}
-                  }
-                  current = current[path[i]]
-                }
-                current[path[path.length - 1]] = op.value
-              } else if (op.op === 'remove') {
-                const path = op.path.split('/').filter((p: string) => p)
-                let current = currentContent
-                for (let i = 0; i < path.length - 1; i++) {
-                  if (!current[path[i]]) break
-                  current = current[path[i]]
-                }
-                if (current && path.length > 0) {
-                  delete current[path[path.length - 1]]
-                }
-              }
-            } catch (error) {
-              console.error('Error applying patch operation:', error)
-            }
-          }
-        }
-      }
-
-      // Now apply the new patch to get the new content
-      const newContent = JSON.parse(JSON.stringify(currentContent))
-      for (const operation of patch) {
-        try {
+    // Apply all patches in order
+    for (const version of previousVersions) {
+      // Ensure patch is an array before iterating
+      const patchArray = Array.isArray(version.patch) ? version.patch : []
+      if (patchArray.length > 0) {
+        // Apply each operation in the patch
+        for (const operation of patchArray) {
           // Type guard to ensure operation has the expected properties
           const op = operation as any
           if (!op || typeof op !== 'object' || !op.op || !op.path) {
             continue
           }
 
-          // Apply operation to newContent
+          // Apply operation to currentContent
+          // This is a simplified version - in production, use a proper JSON patch library
           if (op.op === 'replace' || op.op === 'add') {
             const path = op.path.split('/').filter((p: string) => p)
-            let current = newContent
+            let current = currentContent
             for (let i = 0; i < path.length - 1; i++) {
               if (!current[path[i]]) {
                 current[path[i]] = {}
@@ -124,7 +83,7 @@ export async function createNewVersion({
             current[path[path.length - 1]] = op.value
           } else if (op.op === 'remove') {
             const path = op.path.split('/').filter((p: string) => p)
-            let current = newContent
+            let current = currentContent
             for (let i = 0; i < path.length - 1; i++) {
               if (!current[path[i]]) break
               current = current[path[i]]
@@ -133,18 +92,45 @@ export async function createNewVersion({
               delete current[path[path.length - 1]]
             }
           }
-        } catch (error) {
-          console.error('Error applying new patch operation:', error)
         }
       }
-
-      // Calculate reverse patch from new content to current content
-      reversePatch = compare(newContent, currentContent)
-    } catch (error) {
-      console.error('Error calculating reverse patch:', error)
-      // If we can't calculate the reverse patch, we'll proceed without it
-      // This is not ideal, but allows the operation to continue
     }
+
+    // Now apply the new patch to get the new content
+    const newContent = JSON.parse(JSON.stringify(currentContent))
+    for (const operation of patch) {
+      // Type guard to ensure operation has the expected properties
+      const op = operation
+      if (!op || typeof op !== 'object' || !op.op || !op.path) {
+        continue
+      }
+
+      // Apply operation to newContent
+      if (op.op === 'replace' || op.op === 'add') {
+        const path = op.path.split('/').filter((p: string) => p)
+        let current = newContent
+        for (let i = 0; i < path.length - 1; i++) {
+          if (!current[path[i]]) {
+            current[path[i]] = {}
+          }
+          current = current[path[i]]
+        }
+        current[path[path.length - 1]] = op.value
+      } else if (op.op === 'remove') {
+        const path = op.path.split('/').filter((p: string) => p)
+        let current = newContent
+        for (let i = 0; i < path.length - 1; i++) {
+          if (!current[path[i]]) break
+          current = current[path[i]]
+        }
+        if (current && path.length > 0) {
+          delete current[path[path.length - 1]]
+        }
+      }
+    }
+
+    // Calculate reverse patch from new content to current content
+    reversePatch = compare(newContent, currentContent)
   }
 
   // Since the RPC function might not be available, implement the logic directly
