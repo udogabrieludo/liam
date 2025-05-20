@@ -101,13 +101,10 @@ export async function createNewVersion({
     for (const operation of patch) {
       // Type guard to ensure operation has the expected properties
       const op = operation
-      if (!op || typeof op !== 'object' || !op.op || !op.path) {
-        continue
-      }
 
       // Apply operation to newContent
       if (op.op === 'replace' || op.op === 'add') {
-        const path = op.path.split('/').filter((p: string) => p)
+        const path = op.path.split('/').filter((p) => p)
         let current = newContent
         for (let i = 0; i < path.length - 1; i++) {
           if (!current[path[i]]) {
@@ -117,7 +114,7 @@ export async function createNewVersion({
         }
         current[path[path.length - 1]] = op.value
       } else if (op.op === 'remove') {
-        const path = op.path.split('/').filter((p: string) => p)
+        const path = op.path.split('/').filter((p) => p)
         let current = newContent
         for (let i = 0; i < path.length - 1; i++) {
           if (!current[path[i]]) break
@@ -187,18 +184,6 @@ export async function createNewVersion({
 
   if (insertError) {
     throw new Error(`Failed to insert new version: ${insertError.message}`)
-  }
-
-  // TODO: update?
-  // Update the schema's updated_at timestamp
-  const { error: updateError } = await supabase
-    .from('building_schemas')
-    .select('updated_at')
-    .eq('id', buildingSchemaId)
-
-  if (updateError) {
-    console.error('Error updating schema timestamp:', updateError)
-    // Continue anyway since the version was created successfully
   }
 
   // Return success response
