@@ -59,7 +59,6 @@ create policy "authenticated_users_can_delete_org_building_schema_versions"
     where ("organization_members"."user_id" = "auth"."uid"())
   )));
 
-alter function "public"."set_building_schema_versions_organization_id"() owner to "postgres";
 create or replace function "public"."set_building_schema_versions_organization_id"() returns "trigger"
   language "plpgsql" security definer
   as $$
@@ -72,6 +71,7 @@ begin
   return new;
 end;
 $$;
+alter function "public"."set_building_schema_versions_organization_id"() owner to "postgres";
 
 create trigger "set_building_schema_versions_organization_id_trigger"
   before insert or update on "public"."building_schema_versions"

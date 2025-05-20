@@ -386,6 +386,23 @@ $$;
 ALTER FUNCTION "public"."prevent_delete_last_organization_member"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."set_building_schema_versions_organization_id"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+begin
+  new.organization_id := (
+    select "organization_id" 
+    from "public"."building_schemas"
+    where "id" = new.building_schema_id
+  );
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."set_building_schema_versions_organization_id"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."set_building_schemas_organization_id"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -692,23 +709,6 @@ $$;
 
 
 ALTER FUNCTION "public"."set_schema_file_paths_organization_id"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."set_xxx_organization_id"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    AS $$
-begin
-  new.organization_id := (
-    select "organization_id" 
-    from "public"."building_schemas"
-    where "id" = new.building_schema_id
-  );
-  return new;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."set_xxx_organization_id"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."sync_existing_users"() RETURNS "void"
@@ -1302,6 +1302,10 @@ CREATE OR REPLACE TRIGGER "check_last_organization_member" BEFORE DELETE ON "pub
 
 
 COMMENT ON TRIGGER "check_last_organization_member" ON "public"."organization_members" IS 'Prevents deletion of the last member of an organization to ensure organizations always have at least one member';
+
+
+
+CREATE OR REPLACE TRIGGER "set_building_schema_versions_organization_id_trigger" BEFORE INSERT OR UPDATE ON "public"."building_schema_versions" FOR EACH ROW EXECUTE FUNCTION "public"."set_building_schema_versions_organization_id"();
 
 
 
@@ -2673,6 +2677,12 @@ GRANT ALL ON FUNCTION "public"."prevent_delete_last_organization_member"() TO "s
 
 
 
+GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "anon";
+GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."set_building_schemas_organization_id"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_building_schemas_organization_id"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_building_schemas_organization_id"() TO "service_role";
@@ -2778,12 +2788,6 @@ GRANT ALL ON FUNCTION "public"."set_review_suggestion_snippets_organization_id"(
 GRANT ALL ON FUNCTION "public"."set_schema_file_paths_organization_id"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_schema_file_paths_organization_id"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_schema_file_paths_organization_id"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."set_xxx_organization_id"() TO "anon";
-GRANT ALL ON FUNCTION "public"."set_xxx_organization_id"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_xxx_organization_id"() TO "service_role";
 
 
 
