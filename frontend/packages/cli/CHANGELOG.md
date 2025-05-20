@@ -1,5 +1,13 @@
 # @liam-hq/cli
 
+## 0.5.6
+
+### Patch Changes
+
+- [#1590](https://github.com/liam-hq/liam/pull/1590) - update the primsa parser to support the @@map / Thanks [@khiroshi-win](https://github.com/khiroshi-win)!
+- [#1705](https://github.com/liam-hq/liam/pull/1705) - add the active hover background color to when table name activated in left pane / Thanks [@khiroshi-win](https://github.com/khiroshi-win)!
+- [#1670](https://github.com/liam-hq/liam/pull/1670) - ✨ add schema diff utilities and types / Thanks [@junkisai](https://github.com/junkisai)!
+
 ## 0.5.5
 
 ### Patch Changes
