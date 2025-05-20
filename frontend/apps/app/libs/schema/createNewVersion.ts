@@ -1,7 +1,5 @@
 import { createClient } from '@/libs/db/server'
 import { type Operation, compare } from 'fast-json-patch'
-// Import types from database.types instead of supabase-js directly
-import type { Database } from '@liam-hq/db/supabase/database.types'
 
 interface CreateVersionParams {
   schemaId: string
@@ -27,52 +25,55 @@ export async function createNewVersion({
   schemaId,
   latestVersionNumber,
   title,
-  patch
+  patch,
 }: CreateVersionParams): Promise<VersionResponse> {
   const supabase = await createClient()
-  
+
   // For first version (latestVersionNumber === 0), we don't need to calculate reverse patch
   let reversePatch: Operation[] | undefined = undefined
-  
+
   if (latestVersionNumber > 0) {
     try {
       // Get all previous versions to reconstruct the content
-      const { data: previousVersions, error: previousVersionsError } = await supabase
-        .from('schema_versions')
-        .select('number, patch')
-        .eq('schema_id', schemaId)
-        .lte('number', latestVersionNumber)
-        .order('number', { ascending: true })
-      
+      const { data: previousVersions, error: previousVersionsError } =
+        await supabase
+          .from('schema_versions')
+          .select('number, patch')
+          .eq('schema_id', schemaId)
+          .lte('number', latestVersionNumber)
+          .order('number', { ascending: true })
+
       if (previousVersionsError) {
-        throw new Error(`Failed to fetch previous versions: ${previousVersionsError.message}`)
+        throw new Error(
+          `Failed to fetch previous versions: ${previousVersionsError.message}`,
+        )
       }
-      
+
       if (!previousVersions || previousVersions.length === 0) {
         console.warn('No previous versions found, using empty base content')
         // Continue with empty base content
       }
-      
+
       // Reconstruct the base content (first version)
-      let baseContent: Record<string, any> = {}
-      
+      const baseContent: Record<string, any> = {}
+
       // Apply all patches in order to get the current content
-      let currentContent: Record<string, any> = { ...baseContent }
-      
+      const currentContent: Record<string, any> = { ...baseContent }
+
       // Apply all patches in order
       for (const version of previousVersions) {
         // Ensure patch is an array before iterating
-        const patchArray = Array.isArray(version.patch) ? version.patch : [];
+        const patchArray = Array.isArray(version.patch) ? version.patch : []
         if (patchArray.length > 0) {
           // Apply each operation in the patch
           for (const operation of patchArray) {
             try {
               // Type guard to ensure operation has the expected properties
-              const op = operation as any;
+              const op = operation as any
               if (!op || typeof op !== 'object' || !op.op || !op.path) {
-                continue;
+                continue
               }
-              
+
               // Apply operation to currentContent
               // This is a simplified version - in production, use a proper JSON patch library
               if (op.op === 'replace' || op.op === 'add') {
@@ -102,17 +103,17 @@ export async function createNewVersion({
           }
         }
       }
-      
+
       // Now apply the new patch to get the new content
-      let newContent = JSON.parse(JSON.stringify(currentContent))
+      const newContent = JSON.parse(JSON.stringify(currentContent))
       for (const operation of patch) {
         try {
           // Type guard to ensure operation has the expected properties
-          const op = operation as any;
+          const op = operation as any
           if (!op || typeof op !== 'object' || !op.op || !op.path) {
-            continue;
+            continue
           }
-          
+
           // Apply operation to newContent
           if (op.op === 'replace' || op.op === 'add') {
             const path = op.path.split('/').filter((p: string) => p)
@@ -139,7 +140,7 @@ export async function createNewVersion({
           console.error('Error applying new patch operation:', error)
         }
       }
-      
+
       // Calculate reverse patch from new content to current content
       reversePatch = compare(newContent, currentContent)
     } catch (error) {
@@ -148,7 +149,7 @@ export async function createNewVersion({
       // This is not ideal, but allows the operation to continue
     }
   }
-  
+
   // Since the RPC function might not be available, implement the logic directly
   try {
     // Get the latest version number for this schema
@@ -159,28 +160,34 @@ export async function createNewVersion({
       .order('number', { ascending: false })
       .limit(1)
       .maybeSingle()
-    
+
     // If there's an error and it's not a "no rows returned" error, throw it
-    if (latestVersionError && !latestVersionError.message.includes('No rows returned')) {
-      throw new Error(`Failed to get latest version: ${latestVersionError.message}`)
+    if (
+      latestVersionError &&
+      !latestVersionError.message.includes('No rows returned')
+    ) {
+      throw new Error(
+        `Failed to get latest version: ${latestVersionError.message}`,
+      )
     }
-    
+
     // Get the actual latest version number
     const actualLatestVersionNumber = latestVersion ? latestVersion.number : 0
-    
+
     // Check if the expected version number matches the actual latest version number
     if (latestVersionNumber !== actualLatestVersionNumber) {
       // Version conflict detected
       return {
         success: false,
-        error: 'Version conflict: The schema has been modified since you last loaded it',
-        latestVersionNumber: actualLatestVersionNumber
+        error:
+          'Version conflict: The schema has been modified since you last loaded it',
+        latestVersionNumber: actualLatestVersionNumber,
       }
     }
-    
+
     // Calculate the next version number
     const nextVersionNumber = actualLatestVersionNumber + 1
-    
+
     // NOTE: no need to check for duplicates here, as the database will enforce unique constraints!
     // Insert the new version
     const { data: newVersion, error: insertError } = await supabase
@@ -191,26 +198,26 @@ export async function createNewVersion({
         title,
         patch: patch as any,
         reverse_patch: reversePatch as any,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       })
       .select()
       .single()
-    
+
     if (insertError) {
       throw new Error(`Failed to insert new version: ${insertError.message}`)
     }
-    
+
     // Update the schema's updated_at timestamp
     const { error: updateError } = await supabase
       .from('schemas')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', schemaId)
-    
+
     if (updateError) {
       console.error('Error updating schema timestamp:', updateError)
       // Continue anyway since the version was created successfully
     }
-    
+
     // Return success response
     return {
       success: true,
@@ -218,9 +225,13 @@ export async function createNewVersion({
       schema_id: newVersion.schema_id,
       number: newVersion.number,
       title: newVersion.title,
-      patch: Array.isArray(newVersion.patch) ? (newVersion.patch as unknown as Operation[]) : undefined,
-      reverse_patch: Array.isArray(newVersion.reverse_patch) ? (newVersion.reverse_patch as unknown as Operation[]) : undefined,
-      created_at: newVersion.created_at
+      patch: Array.isArray(newVersion.patch)
+        ? (newVersion.patch as unknown as Operation[])
+        : undefined,
+      reverse_patch: Array.isArray(newVersion.reverse_patch)
+        ? (newVersion.reverse_patch as unknown as Operation[])
+        : undefined,
+      created_at: newVersion.created_at,
     }
   } catch (error: any) {
     console.error('Error creating schema version:', error)
