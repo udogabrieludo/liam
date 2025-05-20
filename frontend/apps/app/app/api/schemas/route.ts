@@ -1,43 +1,43 @@
 import { createClient } from '@/libs/db/server'
 import { NextRequest, NextResponse } from 'next/server'
+import * as v from 'valibot'
+
+const requestParamsSchema = v.object({
+  designSessionId: v.string(),
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    
-    // Get the current user's organization
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    
-    if (!user) {
+    const requestParams = await request.json()
+    const parsedRequestParams = v.safeParse(requestParamsSchema, requestParams)
+
+    if (!parsedRequestParams.success) {
       return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
+        { error: 'Invalid request parameters' },
+        { status: 400 },
       )
     }
-    
-    // Get the user's organization
-    const { data: orgMember } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
+
+    const supabase = await createClient()
+
+    const { data: designSession, error: existingSchemaError } = await supabase
+      .from('design_sessions')
+      .select('id')
+      .eq('id', parsedRequestParams.output.designSessionId)
       .single()
-    
-    if (!orgMember) {
+    if (!designSession || existingSchemaError) {
       return NextResponse.json(
-        { error: 'User is not a member of any organization' },
-        { status: 403 }
+        { error: 'Design session not found' },
+        { status: 404 },
       )
     }
     
     // Create a new schema
-    const { data: schema, error } = await supabase
+    const { data: buildingSchema, error } = await supabase
       .from('building_schemas')
       .insert({
-        organization_id: orgMember.organization_id,
-        design_session_id: request.headers.get('x-design-session-id') || '',
-        schema: {},
+        design_session_id: designSession.id,
+        schema: {}, // TODO: Add initial schema data from designSession git sha
         created_at: new Date().toISOString(),
       })
       .select()
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    return NextResponse.json(schema)
+    return NextResponse.json(buildingSchema)
   } catch (error) {
     console.error('Error in POST /api/schemas:', error)
     return NextResponse.json(
