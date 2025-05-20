@@ -4,16 +4,14 @@ import { type Operation, compare } from 'fast-json-patch'
 interface CreateVersionParams {
   schemaId: string
   latestVersionNumber: number
-  title: string
   patch: Operation[]
 }
 
 interface VersionResponse {
   success: boolean
   id?: string
-  schema_id?: string
+  building_schema_id?: string
   number?: number
-  title?: string
   patch?: Operation[]
   reverse_patch?: Operation[]
   created_at?: string
@@ -22,9 +20,8 @@ interface VersionResponse {
 }
 
 export async function createNewVersion({
-  schemaId,
+  schemaId: buildingSchemaId,
   latestVersionNumber,
-  title,
   patch,
 }: CreateVersionParams): Promise<VersionResponse> {
   const supabase = await createClient()
@@ -37,9 +34,9 @@ export async function createNewVersion({
       // Get all previous versions to reconstruct the content
       const { data: previousVersions, error: previousVersionsError } =
         await supabase
-          .from('schema_versions')
+          .from('building_schema_versions')
           .select('number, patch')
-          .eq('schema_id', schemaId)
+          .eq('building_schema_id', buildingSchemaId)
           .lte('number', latestVersionNumber)
           .order('number', { ascending: true })
 
@@ -154,9 +151,9 @@ export async function createNewVersion({
   try {
     // Get the latest version number for this schema
     const { data: latestVersion, error: latestVersionError } = await supabase
-      .from('schema_versions')
+      .from('building_schema_versions')
       .select('number')
-      .eq('schema_id', schemaId)
+      .eq('building_schema_id', buildingSchemaId)
       .order('number', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -191,11 +188,11 @@ export async function createNewVersion({
     // NOTE: no need to check for duplicates here, as the database will enforce unique constraints!
     // Insert the new version
     const { data: newVersion, error: insertError } = await supabase
-      .from('schema_versions')
+      .from('building_schema_versions')
       .insert({
-        schema_id: schemaId,
+        organization_id: 'orgId', // TODO: Replace with actual organization ID
+        building_schema_id: buildingSchemaId,
         number: nextVersionNumber,
-        title,
         patch: patch as any,
         reverse_patch: reversePatch as any,
         created_at: new Date().toISOString(),
@@ -207,11 +204,12 @@ export async function createNewVersion({
       throw new Error(`Failed to insert new version: ${insertError.message}`)
     }
 
+    // TODO: update?
     // Update the schema's updated_at timestamp
     const { error: updateError } = await supabase
-      .from('schemas')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', schemaId)
+      .from('building_schemas')
+      .select('updated_at')
+      .eq('id', buildingSchemaId)
 
     if (updateError) {
       console.error('Error updating schema timestamp:', updateError)
@@ -222,9 +220,8 @@ export async function createNewVersion({
     return {
       success: true,
       id: newVersion.id,
-      schema_id: newVersion.schema_id,
+      building_schema_id: newVersion.building_schema_id,
       number: newVersion.number,
-      title: newVersion.title,
       patch: Array.isArray(newVersion.patch)
         ? (newVersion.patch as unknown as Operation[])
         : undefined,
