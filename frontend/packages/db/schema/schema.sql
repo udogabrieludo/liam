@@ -694,6 +694,23 @@ $$;
 ALTER FUNCTION "public"."set_schema_file_paths_organization_id"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."set_xxx_organization_id"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+begin
+  new.organization_id := (
+    select "organization_id" 
+    from "public"."building_schemas"
+    where "id" = new.building_schema_id
+  );
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."set_xxx_organization_id"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."sync_existing_users"() RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -719,6 +736,7 @@ SET default_table_access_method = "heap";
 
 CREATE TABLE IF NOT EXISTS "public"."building_schema_versions" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "organization_id" "uuid" NOT NULL,
     "building_schema_id" "uuid" NOT NULL,
     "number" integer NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
@@ -1364,6 +1382,11 @@ ALTER TABLE ONLY "public"."building_schema_versions"
 
 
 
+ALTER TABLE ONLY "public"."building_schema_versions"
+    ADD CONSTRAINT "building_schema_versions_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."building_schemas"
     ADD CONSTRAINT "building_schemas_design_session_id_fkey" FOREIGN KEY ("design_session_id") REFERENCES "public"."design_sessions"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
@@ -1619,6 +1642,12 @@ ALTER TABLE ONLY "public"."schema_file_paths"
 
 
 
+CREATE POLICY "authenticated_users_can_delete_org_building_schema_versions" ON "public"."building_schema_versions" FOR DELETE TO "authenticated" USING (("organization_id" IN ( SELECT "organization_members"."organization_id"
+   FROM "public"."organization_members"
+  WHERE ("organization_members"."user_id" = "auth"."uid"()))));
+
+
+
 CREATE POLICY "authenticated_users_can_delete_org_building_schemas" ON "public"."building_schemas" FOR DELETE TO "authenticated" USING (("organization_id" IN ( SELECT "organization_members"."organization_id"
    FROM "public"."organization_members"
   WHERE ("organization_members"."user_id" = "auth"."uid"()))));
@@ -1670,6 +1699,12 @@ CREATE POLICY "authenticated_users_can_delete_org_projects" ON "public"."project
 
 
 COMMENT ON POLICY "authenticated_users_can_delete_org_projects" ON "public"."projects" IS 'Authenticated users can only delete projects in organizations they are members of';
+
+
+
+CREATE POLICY "authenticated_users_can_insert_org_building_schema_versions" ON "public"."building_schema_versions" FOR INSERT TO "authenticated" WITH CHECK (("organization_id" IN ( SELECT "organization_members"."organization_id"
+   FROM "public"."organization_members"
+  WHERE ("organization_members"."user_id" = "auth"."uid"()))));
 
 
 
@@ -1802,6 +1837,12 @@ CREATE POLICY "authenticated_users_can_insert_projects" ON "public"."projects" F
 
 
 COMMENT ON POLICY "authenticated_users_can_insert_projects" ON "public"."projects" IS 'Authenticated users can create any project';
+
+
+
+CREATE POLICY "authenticated_users_can_select_org_building_schema_versions" ON "public"."building_schema_versions" FOR SELECT TO "authenticated" USING (("organization_id" IN ( SELECT "organization_members"."organization_id"
+   FROM "public"."organization_members"
+  WHERE ("organization_members"."user_id" = "auth"."uid"()))));
 
 
 
@@ -2010,6 +2051,14 @@ CREATE POLICY "authenticated_users_can_select_org_schema_file_paths" ON "public"
 
 
 COMMENT ON POLICY "authenticated_users_can_select_org_schema_file_paths" ON "public"."schema_file_paths" IS 'Authenticated users can only view schema file paths belonging to organizations they are members of';
+
+
+
+CREATE POLICY "authenticated_users_can_update_org_building_schema_versions" ON "public"."building_schema_versions" FOR UPDATE TO "authenticated" USING (("organization_id" IN ( SELECT "organization_members"."organization_id"
+   FROM "public"."organization_members"
+  WHERE ("organization_members"."user_id" = "auth"."uid"())))) WITH CHECK (("organization_id" IN ( SELECT "organization_members"."organization_id"
+   FROM "public"."organization_members"
+  WHERE ("organization_members"."user_id" = "auth"."uid"()))));
 
 
 
@@ -2394,42 +2443,6 @@ COMMENT ON POLICY "service_role_can_update_all_projects" ON "public"."projects" 
 ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "users can delete schema versions in their organizations" ON "public"."building_schema_versions" FOR DELETE USING (("building_schema_id" IN ( SELECT "building_schemas"."id"
-   FROM "public"."building_schemas"
-  WHERE ("building_schemas"."organization_id" IN ( SELECT "organization_members"."organization_id"
-           FROM "public"."organization_members"
-          WHERE ("organization_members"."user_id" = "auth"."uid"()))))));
-
-
-
-CREATE POLICY "users can insert schema versions in their organizations" ON "public"."building_schema_versions" FOR INSERT WITH CHECK (("building_schema_id" IN ( SELECT "building_schemas"."id"
-   FROM "public"."building_schemas"
-  WHERE ("building_schemas"."organization_id" IN ( SELECT "organization_members"."organization_id"
-           FROM "public"."organization_members"
-          WHERE ("organization_members"."user_id" = "auth"."uid"()))))));
-
-
-
-CREATE POLICY "users can update schema versions in their organizations" ON "public"."building_schema_versions" FOR UPDATE USING (("building_schema_id" IN ( SELECT "building_schemas"."id"
-   FROM "public"."building_schemas"
-  WHERE ("building_schemas"."organization_id" IN ( SELECT "organization_members"."organization_id"
-           FROM "public"."organization_members"
-          WHERE ("organization_members"."user_id" = "auth"."uid"())))))) WITH CHECK (("building_schema_id" IN ( SELECT "building_schemas"."id"
-   FROM "public"."building_schemas"
-  WHERE ("building_schemas"."organization_id" IN ( SELECT "organization_members"."organization_id"
-           FROM "public"."organization_members"
-          WHERE ("organization_members"."user_id" = "auth"."uid"()))))));
-
-
-
-CREATE POLICY "users can view schema versions in their organizations" ON "public"."building_schema_versions" FOR SELECT USING (("building_schema_id" IN ( SELECT "building_schemas"."id"
-   FROM "public"."building_schemas"
-  WHERE ("building_schemas"."organization_id" IN ( SELECT "organization_members"."organization_id"
-           FROM "public"."organization_members"
-          WHERE ("organization_members"."user_id" = "auth"."uid"()))))));
-
-
-
 CREATE POLICY "users_same_organization_select_policy" ON "public"."users" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
    FROM ("public"."organization_members" "om1"
      JOIN "public"."organization_members" "om2" ON (("om1"."organization_id" = "om2"."organization_id")))
@@ -2765,6 +2778,12 @@ GRANT ALL ON FUNCTION "public"."set_review_suggestion_snippets_organization_id"(
 GRANT ALL ON FUNCTION "public"."set_schema_file_paths_organization_id"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_schema_file_paths_organization_id"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_schema_file_paths_organization_id"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_xxx_organization_id"() TO "anon";
+GRANT ALL ON FUNCTION "public"."set_xxx_organization_id"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_xxx_organization_id"() TO "service_role";
 
 
 

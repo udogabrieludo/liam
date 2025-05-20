@@ -40,6 +40,7 @@ export type Database = {
           created_at: string
           id: string
           number: number
+          organization_id: string
           patch: Json
           reverse_patch: Json
         }
@@ -48,6 +49,7 @@ export type Database = {
           created_at?: string
           id?: string
           number: number
+          organization_id: string
           patch: Json
           reverse_patch: Json
         }
@@ -56,6 +58,7 @@ export type Database = {
           created_at?: string
           id?: string
           number?: number
+          organization_id?: string
           patch?: Json
           reverse_patch?: Json
         }
@@ -65,6 +68,13 @@ export type Database = {
             columns: ['building_schema_id']
             isOneToOne: false
             referencedRelation: 'building_schemas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'building_schema_versions_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
             referencedColumns: ['id']
           },
         ]
