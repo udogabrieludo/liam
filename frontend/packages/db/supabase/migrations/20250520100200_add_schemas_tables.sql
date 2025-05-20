@@ -78,12 +78,12 @@ create trigger "set_building_schema_versions_organization_id_trigger"
   for each row
   execute function "public"."set_building_schema_versions_organization_id"();
 
-GRANT ALL ON TABLE "public"."building_schema_versions" TO "anon";
-GRANT ALL ON TABLE "public"."building_schema_versions" TO "authenticated";
-GRANT ALL ON TABLE "public"."building_schema_versions" TO "service_role";
+grant all on table "public"."building_schema_versions" to "anon";
+grant all on table "public"."building_schema_versions" to "authenticated";
+grant all on table "public"."building_schema_versions" to "service_role";
 
-GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "anon";
-GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_building_schema_versions_organization_id"() TO "service_role";
+grant all on function "public"."set_building_schema_versions_organization_id"() to "anon";
+grant all on function "public"."set_building_schema_versions_organization_id"() to "authenticated";
+grant all on function "public"."set_building_schema_versions_organization_id"() to "service_role";
 
 commit;
